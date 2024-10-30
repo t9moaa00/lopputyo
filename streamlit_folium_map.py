@@ -19,30 +19,27 @@ avg_speed = df_location['Velocity (m/s)'].mean()
 st.write("Keskinopeus on:", avg_speed, 'm/s')
 
 # Total Distance from GPS Data
-# Since distance is not directly available, estimate it by summing segments of velocity*time.
-time_diff = np.diff(df_location['Time (s)'])  # Compute time differences between samples
-distances = df_location['Velocity (m/s)'][:-1] * time_diff  # Calculate segment distances
-total_distance = distances.sum() / 1000  # Convert from meters to km
+time_diff = np.diff(df_location['Time (s)'])
+distances = df_location['Velocity (m/s)'][:-1] * time_diff
+total_distance = distances.sum() / 1000  # Convert to km
 st.write("Kokonaismatka on:", total_distance, 'km')
 
 # Step Count using Filtered Acceleration Data (Z-axis)
 accel_z = df_accel['Linear Acceleration z (m/s^2)']
 time_accel = df_accel['Time (s)']
-
-# Use find_peaks to detect steps based on peaks in Z-axis acceleration signal
-peaks, _ = find_peaks(accel_z, height=1, distance=20)  # Adjust `height` and `distance` for optimal detection
+peaks, _ = find_peaks(accel_z, height=1, distance=20)
 step_count_filtered = len(peaks)
 st.write("Askelmäärä suodatetusta kiihtyvyysdatasta:", step_count_filtered)
 
 # Step Count using Fourier Analysis
 frequencies, power_density = welch(accel_z, fs=1/np.mean(np.diff(time_accel)), nperseg=256)
-step_freq = frequencies[np.argmax(power_density)]  # Dominant frequency peak
-step_count_fourier = int(step_freq * (time_accel.iloc[-1] - time_accel.iloc[0]))  # Estimated steps
+step_freq = frequencies[np.argmax(power_density)]
+step_count_fourier = int(step_freq * (time_accel.iloc[-1] - time_accel.iloc[0]))
 st.write("Askelmäärä Fourier-analyysin perusteella:", step_count_fourier)
 
-# Step Length (calculated from distance and step count)
+# Step Length Calculation
 if step_count_filtered > 0:
-    step_length = total_distance * 1000 / step_count_filtered  # converting km to m
+    step_length = total_distance * 1000 / step_count_filtered
     st.write("Askelpituus:", step_length, 'm')
 else:
     st.write("Askelpituutta ei voitu laskea, koska askelmäärä on 0.")
@@ -57,20 +54,26 @@ plt.ylabel("Acceleration (m/s^2)")
 plt.legend()
 st.pyplot(plt)
 
-# Power Spectral Density Plot for Fourier Analysis
+# Power Spectral Density Plot with Matplotlib
 st.subheader("Kiihtyvyysdatan tehospektritiheys")
 plt.figure(figsize=(10, 4))
-plt.semilogy(frequencies, power_density)
+
+# Convert to dB and plot with manual axis limits
+power_density_db = 10 * np.log10(power_density)
+plt.plot(frequencies, power_density_db)
 plt.xlabel("Frequency (Hz)")
-plt.ylabel("Power Spectral Density")
+plt.ylabel("Power (dB)")
+plt.title("Power Spectral Density")
+
+# Optional: Set y-axis limits to focus on visible range (adjust as needed)
+plt.ylim([np.min(power_density_db)-10, np.max(power_density_db)+10])
+
 st.pyplot(plt)
 
 # Create Route Map with Folium
 start_lat = df_location['Latitude (°)'].mean()
 start_long = df_location['Longitude (°)'].mean()
 map = folium.Map(location=[start_lat, start_long], zoom_start=14)
-
-# Add Polyline to the map for route visualization
 folium.PolyLine(df_location[['Latitude (°)', 'Longitude (°)']], color='blue', weight=3.5, opacity=1).add_to(map)
 
 # Display the map
